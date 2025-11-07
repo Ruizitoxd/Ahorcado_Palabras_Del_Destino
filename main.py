@@ -9,6 +9,8 @@ ANCHO, ALTO = 1920, 1080
 VENTANA = pygame.display.set_mode((ANCHO, ALTO))
 pygame.display.set_caption("Juego del Ahorcado")
 
+# TE AMO MACIASSS (Borré estoxd no sé porque el git no me dejaba subir todo el archivo sin algún cambio raroxdd)
+
 # Colores
 BLANCO = (255, 255, 255)
 NEGRO = (0, 0, 0)
