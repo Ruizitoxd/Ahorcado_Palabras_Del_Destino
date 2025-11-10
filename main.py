@@ -1,7 +1,9 @@
 import pygame
 import random
-import sys
+import json
 import time
+import sys
+import os
 
 pygame.init()
 
@@ -21,21 +23,30 @@ VERDE = (0, 200, 0)
 
 # --- FUENTES ---
 def fuente_responsive(tamaño):
-    return pygame.font.SysFont("comicsans", max(14, int(tamaño * (ANCHO / ANCHO_BASE))))
+    # Tamaño base escalado por ANCHO respecto a ANCHO_BASE, con mínimo 14
+    size = max(14, int(tamaño * (ANCHO / ANCHO_BASE)))
+    return pygame.font.SysFont("comicsans", size)
 
 FUENTE = fuente_responsive(40)
 FUENTE_PALABRA = fuente_responsive(70)
 
-# --- PALABRAS ---
-PALABRAS = ["PYTHON", "JUEGO", "PROGRAMAR", "AHORCADO", "TECLADO",
-            "PANTALLA", "RATON", "CODIGO", "VARIABLE", "ALGORITMO",
-            "CLASE", "FUNCION", "CICLO", "OBJETO", "COMPILAR"]
+# --- CARGAR PALABRAS DESDE JSON ---
+with open("palabras.json", "r", encoding="utf-8") as archivo:
+    DATA_PALABRAS = json.load(archivo)
+# Normalizar a mayúsculas para evitar discrepancias
+for k in list(DATA_PALABRAS.keys()):
+    DATA_PALABRAS[k] = [p.upper() for p in DATA_PALABRAS[k]]
 
-# --- CARGAR IMÁGENES ---
-IMAGENES = []
+# --- CARGAR IMÁGENES (originales) ---
+IMAGENES_ORIG = []
+ruta_assets = os.path.join(os.path.dirname(__file__), "assets")
 for i in range(7):
-    imagen = pygame.image.load(f"assets/hangman{i}.png").convert_alpha()
-    IMAGENES.append(imagen)
+    path_img = os.path.join(ruta_assets, f"hangman{i}.png")
+    imagen = pygame.image.load(path_img).convert_alpha()
+    IMAGENES_ORIG.append(imagen)
+
+# IMAGENES que se usan en cada frame (escaladas)
+IMAGENES = []
 
 # --- VARIABLES GLOBALES ---
 modo_pantalla_completa = False
@@ -43,42 +54,72 @@ clock = pygame.time.Clock()
 FPS = 60
 
 # --- FUNCIONES AUXILIARES ---
-def escalar_imagen(imagen, escala):
-    ancho = max(1, int(imagen.get_width() * escala))
-    alto = max(1, int(imagen.get_height() * escala))
-    return pygame.transform.smoothscale(imagen, (ancho, alto))
+def escalar_imagen_desde_original(idx, escala):
+    """Escala la imagen original en IMAGENES_ORIG[idx] con factor escala (float)."""
+    orig = IMAGENES_ORIG[idx]
+    ancho = max(1, int(orig.get_width() * escala))
+    alto = max(1, int(orig.get_height() * escala))
+    return pygame.transform.smoothscale(orig, (ancho, alto))
+
+def actualizar_imagenes_por_tamano():
+    """Recalcula IMAGENES escaladas según ANCHO/ALTO actuales."""
+    global IMAGENES
+    factor = min(ANCHO / ANCHO_BASE, ALTO / ALTO_BASE)
+    # multiplica por un factor adicional para que la imagen no ocupe toda la pantalla
+    escala_visual = max(0.15, factor * 0.6)
+    IMAGENES = [escalar_imagen_desde_original(i, escala_visual) for i in range(len(IMAGENES_ORIG))]
+
+# inicializar IMAGENES escaladas
+actualizar_imagenes_por_tamano()
 
 def dibujar_boton(texto, x, y, ancho, alto, color, color_texto, hover_color=None):
+    """
+    Dibuja un botón en coordenadas absolutas (enteros) y devuelve True si fue clickeado.
+    x,y,ancho,alto deben estar en pixeles. Para hacerlo responsive, calcula estos con proporciones fuera.
+    """
     mouse = pygame.mouse.get_pos()
     click = pygame.mouse.get_pressed()
     dentro = x < mouse[0] < x + ancho and y < mouse[1] < y + alto
 
     if dentro:
-        pygame.draw.rect(VENTANA, hover_color or color, (x, y, ancho, alto))
+        pygame.draw.rect(VENTANA, hover_color or color, (x, y, ancho, alto), border_radius=8)
         if click[0] == 1:
-            pygame.time.delay(150)
+            pygame.time.delay(120)
             return True
     else:
-        pygame.draw.rect(VENTANA, color, (x, y, ancho, alto))
+        pygame.draw.rect(VENTANA, color, (x, y, ancho, alto), border_radius=8)
 
     texto_render = FUENTE.render(texto, True, color_texto)
     VENTANA.blit(texto_render, (x + ancho/2 - texto_render.get_width()/2, y + alto/2 - texto_render.get_height()/2))
     return False
 
-def redimensionar(nuevo_ancho, nuevo_alto):
-    global ANCHO, ALTO, FUENTE, FUENTE_PALABRA
-    ANCHO, ALTO = nuevo_ancho, nuevo_alto
-    FUENTE = fuente_responsive(40)
-    FUENTE_PALABRA = fuente_responsive( max(28, 70 * (ANCHO/ANCHO_BASE)) )
+def redimensionar(nuevo_ancho, nuevo_alto, recrear_ventana=True):
+    """
+    Actualiza ANCHO/ALTO, ventana, fuentes e imágenes escaladas.
+    Si recrear_ventana==False, NO llama a pygame.display.set_mode() (útil cuando ya cambiamos la ventana).
+    """
+    global ANCHO, ALTO, FUENTE, FUENTE_PALABRA, VENTANA
+    try:
+        ANCHO, ALTO = max(300, int(nuevo_ancho)), max(200, int(nuevo_alto))  # límites mínimos
+        if recrear_ventana:
+            # recrea la ventana sólo si es necesario
+            VENTANA = pygame.display.set_mode((ANCHO, ALTO), pygame.RESIZABLE)
+        # actualizar fuentes y recursos dependientes del tamaño
+        FUENTE = fuente_responsive(40)
+        FUENTE_PALABRA = fuente_responsive(max(28, 70 * (ANCHO / ANCHO_BASE)))
+        actualizar_imagenes_por_tamano()
+        print(f"[redimensionar] ANCHO={ANCHO} ALTO={ALTO} recrear_ventana={recrear_ventana}")
+    except Exception as e:
+        print("[redimensionar] error:", e)
 
 # crea las posiciones de las letras de forma responsive (2 filas de 13)
 def crear_botones_letras():
     # radius y gap dependen del ancho
-    radius = int(max(18, min(32, ANCHO / 45)))  # entre 18 y 32 px aprox
-    gap = int(radius * 0.6)
+    radius = int(max(14, min(48, ANCHO / 45)))  # adaptativo
+    gap = int(radius * 0.5)
     total_width = (2 * radius) * 13 + gap * 12
     inicioX = max(20, round((ANCHO - total_width) / 2))
-    inicioY = ALTO - (radius * 4) - 20
+    inicioY = ALTO - (radius * 4) - int(ALTO * 0.02)
     botones = []
     for i in range(26):
         x = inicioX + ((i % 13) * (2 * radius + gap)) + radius
@@ -104,10 +145,16 @@ def verificar_letra(letra, palabra, letras_adivinadas, letras_falladas, boton):
         boton[3] = "fallo"
 
 def mostrar_mensaje(texto, color, delay_ms=1500):
-    pygame.time.delay(300)
+    pygame.time.delay(200)
     VENTANA.fill(BLANCO)
-    mensaje = FUENTE_PALABRA.render(texto, True, color)
-    VENTANA.blit(mensaje, (ANCHO/2 - mensaje.get_width()/2, ALTO/2 - mensaje.get_height()/2))
+    # soporte para saltos de línea
+    lineas = str(texto).split("\n")
+    altura_total = sum(FUENTE_PALABRA.size(linea)[1] for linea in lineas) + (len(lineas)-1)*10
+    y_inicio = ALTO/2 - altura_total/2
+    for linea in lineas:
+        mensaje = FUENTE_PALABRA.render(linea, True, color)
+        VENTANA.blit(mensaje, (ANCHO/2 - mensaje.get_width()/2, y_inicio))
+        y_inicio += mensaje.get_height() + 10
     pygame.display.update()
     pygame.time.delay(delay_ms)
 
@@ -116,17 +163,25 @@ def menu_principal():
     corriendo = True
     while corriendo:
         VENTANA.fill(BLANCO)
-        titulo_fuente = fuente_responsive(100)
+        titulo_fuente = pygame.font.SysFont("comicsans", max(24, int(ANCHO * 0.06)))
         titulo = titulo_fuente.render("JUEGO DEL AHORCADO", True, NEGRO)
-        VENTANA.blit(titulo, (ANCHO/2 - titulo.get_width()/2, ALTO/4))
+        VENTANA.blit(titulo, (ANCHO/2 - titulo.get_width()/2, ALTO*0.12))
 
-        if dibujar_boton("JUGAR", ANCHO/2 - 200, ALTO/2 - 100, 400, 80, GRIS, NEGRO, (180,180,180)):
-            modo_desafio()
+        # calcular botones con proporciones
+        btn_w = int(ANCHO * 0.32)
+        btn_h = int(ALTO * 0.10)
+        x_center = ANCHO/2 - btn_w/2
+        y_jugar = int(ALTO * 0.42)
 
-        if dibujar_boton("CONFIGURACIÓN", ANCHO/2 - 200, ALTO/2 + 20, 400, 80, GRIS, NEGRO, (180,180,180)):
+        if dibujar_boton("JUGAR", int(x_center), y_jugar, btn_w, btn_h, GRIS, NEGRO, (180,180,180)):
+            dificultad = seleccionar_dificultad()
+            if dificultad is not None:
+                modo_desafio(dificultad)
+
+        if dibujar_boton("CONFIGURACIÓN", int(x_center), y_jugar + btn_h + int(ALTO*0.03), btn_w, btn_h, GRIS, NEGRO, (180,180,180)):
             configuracion()
 
-        if dibujar_boton("SALIR", ANCHO/2 - 200, ALTO/2 + 140, 400, 80, GRIS, NEGRO, (180,180,180)):
+        if dibujar_boton("SALIR", int(x_center), y_jugar + 2*(btn_h + int(ALTO*0.03)), btn_w, btn_h, GRIS, NEGRO, (180,180,180)):
             pygame.quit()
             sys.exit()
 
@@ -142,26 +197,94 @@ def menu_principal():
 
 # --- CONFIGURACIÓN ---
 def configuracion():
-    global modo_pantalla_completa, VENTANA
+    """
+    Menú de configuración. Al cambiar el modo de pantalla se llama a set_mode() una vez
+    y luego a redimensionar(..., recrear_ventana=False) para recalcular fuentes e imágenes.
+    """
+    global modo_pantalla_completa, VENTANA, ANCHO, ALTO
     corriendo = True
     while corriendo:
         VENTANA.fill(BLANCO)
-        titulo_fuente = fuente_responsive(80)
+        titulo_fuente = fuente_responsive(60)
         titulo = titulo_fuente.render("CONFIGURACIÓN", True, NEGRO)
-        VENTANA.blit(titulo, (ANCHO/2 - titulo.get_width()/2, ALTO/4))
+        VENTANA.blit(titulo, (ANCHO/2 - titulo.get_width()/2, ALTO*0.12))
 
-        if dibujar_boton("Pantalla completa" if not modo_pantalla_completa else "Modo ventana",
-                         ANCHO/2 - 250, ALTO/2 - 50, 500, 80, GRIS, NEGRO, (180,180,180)):
+        btn_w = int(ANCHO * 0.44)
+        btn_h = int(ALTO * 0.10)
+        x_center = ANCHO/2 - btn_w/2
+        y = int(ALTO*0.4)
+
+        if dibujar_boton("Pantalla completa" if not modo_pantalla_completa else "Modo ventana", int(x_center), y, btn_w, btn_h, GRIS, NEGRO, (180,180,180)):
+            # toggle del modo completo
             modo_pantalla_completa = not modo_pantalla_completa
-            if modo_pantalla_completa:
-                VENTANA = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
-            else:
-                VENTANA = pygame.display.set_mode((1024, 640), pygame.RESIZABLE)
-            redimensionar(VENTANA.get_width(), VENTANA.get_height())
+            try:
+                if modo_pantalla_completa:
+                    # Activar fullscreen — llamar a set_mode UNA vez
+                    VENTANA = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+                    ANCHO, ALTO = VENTANA.get_size()
+                    # No recreamos la ventana dentro de redimensionar, ya la cambiamos arriba
+                    redimensionar(ANCHO, ALTO, recrear_ventana=False)
+                    print("[configuracion] ahora FULLSCREEN:", ANCHO, ALTO)
+                else:
+                    # Volver a ventana redimensionable con tamaño por defecto
+                    VENTANA = pygame.display.set_mode((1024, 640), pygame.RESIZABLE)
+                    ANCHO, ALTO = VENTANA.get_size()
+                    redimensionar(ANCHO, ALTO, recrear_ventana=False)
+                    print("[configuracion] ahora VENTANA:", ANCHO, ALTO)
+            except Exception as e:
+                print("[configuracion] error al cambiar modo:", e)
 
-        if dibujar_boton("← VOLVER", 50, ALTO - 100, 250, 70, GRIS, NEGRO, (180,180,180)):
+        if dibujar_boton("← VOLVER",  int(ANCHO*0.03), ALTO - int(ALTO*0.12), int(ANCHO*0.18), int(ALTO*0.08), GRIS, NEGRO, (180,180,180)):
             corriendo = False
 
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.VIDEORESIZE:
+                # Cuando el usuario redimensiona manualmente la ventana, redimensionar recrea la ventana.
+                redimensionar(event.w, event.h, recrear_ventana=True)
+
+        pygame.display.update()
+        clock.tick(FPS)
+
+# Seleccionar dificultad del juego (responsive)
+def seleccionar_dificultad():
+    corriendo = True
+    dificultad = None
+    while corriendo:
+        VENTANA.fill(BLANCO)
+        titulo_fuente = fuente_responsive(56)
+        titulo = titulo_fuente.render("Selecciona la Dificultad", True, NEGRO)
+        VENTANA.blit(titulo, (ANCHO / 2 - titulo.get_width() / 2, ALTO * 0.12))
+
+        # --- Botones de dificultad centrados horizontal y verticalmente ---
+        btn_w = int(ANCHO * 0.28)
+        btn_h = int(ALTO * 0.11)
+        espacio = int(ANCHO * 0.05)  # separación horizontal entre botones
+
+        total_ancho = btn_w * 2 + espacio
+        x_inicial = (ANCHO - total_ancho) // 2  # margen izquierdo del primer botón
+        y_centro = (ALTO - btn_h) // 2 + int(ALTO * 0.08)  # ligeramente más abajo del centro
+
+        # Coordenadas de los botones
+        x_facil = x_inicial
+        x_dificil = x_inicial + btn_w + espacio
+
+        # --- Dibujo de los botones ---
+        if dibujar_boton("FÁCIL", x_facil, y_centro, btn_w, btn_h, VERDE, BLANCO, (0, 150, 0)):
+            dificultad = "facil"
+            corriendo = False
+
+        if dibujar_boton("DIFÍCIL", x_dificil, y_centro, btn_w, btn_h, ROJO, BLANCO, (180, 0, 0)):
+            dificultad = "dificil"
+            corriendo = False
+
+        # --- Botón VOLVER (abajo a la izquierda) ---
+        if dibujar_boton("← VOLVER", int(ANCHO * 0.03), ALTO - int(ALTO * 0.12), int(ANCHO * 0.18), int(ALTO * 0.08), GRIS, NEGRO, (180, 180, 180)):
+            return None  # volver al menú principal
+
+        # --- Eventos ---
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -172,34 +295,38 @@ def configuracion():
         pygame.display.update()
         clock.tick(FPS)
 
+    return dificultad
+
+
 # --- DIBUJAR JUEGO (mejorado responsive) ---
-def dibujar(palabra, letras_adivinadas, letras, intentos, letras_falladas, tiempo_restante, palabra_actual, total_palabras):
+def dibujar(palabra, letras_adivinadas, letras, intentos, letras_falladas, tiempo_restante, palabra_actual, total_palabras, puntuacion):
     VENTANA.fill(BLANCO)
 
-    # escala apropiada para la imagen (dependiendo de ancho y alto)
-    escala = min(ANCHO / 1920, ALTO / 1080) * 1.0
-    imagen = escalar_imagen(IMAGENES[intentos], escala)
+    # escala y obtener imagen
+    imagen = IMAGENES[intentos]
 
-    # posición de la imagen: arriba-izquierda con margen
-    margen_x = int(ANCHO * 0.08)
-    margen_y = int(ALTO * 0.08)
+    # posición de la imagen: arriba-izquierda con margen proporcional
+    margen_x = int(ANCHO * 0.06)
+    margen_y = int(ALTO * 0.06)
     imagen_x = margen_x
     imagen_y = margen_y
     VENTANA.blit(imagen, (imagen_x, imagen_y))
 
-    # calcular donde colocar la palabra: debajo de la imagen (si cabe), si no, un poco más abajo
+    # calcular donde colocar la palabra: debajo de la imagen
     imagen_bottom = imagen_y + imagen.get_height()
-    palabra_y = imagen_bottom + int(ALTO * 0.03)  # separación entre imagen y palabra
-    # dibujar la palabra centrada horizontalmente, pero asegurando que esté por debajo de la imagen
+    palabra_y = imagen_bottom + int(ALTO * 0.03)
     mostrar_palabra = ""
     for letra in palabra:
         mostrar_palabra += letra + " " if letra in letras_adivinadas else "_ "
+    # si la palabra es muy larga, reducir la fuente temporalmente
     texto_palabra = FUENTE_PALABRA.render(mostrar_palabra, True, NEGRO)
+    if texto_palabra.get_width() > ANCHO * 0.9:
+        # escala de fuente manual: usar FUENTE más pequeña
+        font_temp = pygame.font.SysFont("comicsans", max(12, int(FUENTE_PALABRA.get_height() * 0.7)))
+        texto_palabra = font_temp.render(mostrar_palabra, True, NEGRO)
 
-    # si la palabra se superpone verticalmente con la imagen (caso de imagen muy alta), empujarla abajo
     min_palabra_y = imagen_y + imagen.get_height() + 10
     final_palabra_y = max(palabra_y, min_palabra_y)
-    # si aún ahora la palabra queda demasiado abajo (por muy poca altura), reducir fuente (opcional)
     VENTANA.blit(texto_palabra, (ANCHO/2 - texto_palabra.get_width()/2, final_palabra_y))
 
     # Dibujar letras (botones)
@@ -218,27 +345,33 @@ def dibujar(palabra, letras_adivinadas, letras, intentos, letras_falladas, tiemp
 
     # Contador de palabras y tiempo (arriba)
     progreso = FUENTE.render(f"Palabra {palabra_actual}/{total_palabras}", True, NEGRO)
-    VENTANA.blit(progreso, (20, 20))
+    VENTANA.blit(progreso, (int(ANCHO*0.02), int(ALTO*0.02)))
+
     minutos = int(tiempo_restante // 60)
     segundos = int(tiempo_restante % 60)
     color_tiempo = ROJO if tiempo_restante < 30 else NEGRO
     cronometro = FUENTE.render(f"Tiempo: {minutos:02}:{segundos:02}", True, color_tiempo)
-    VENTANA.blit(cronometro, (ANCHO - cronometro.get_width() - 30, 20))
+    VENTANA.blit(cronometro, (ANCHO - cronometro.get_width() - int(ANCHO*0.02), int(ALTO*0.02)))
+
+    # Mostrar puntuación en pantalla
+    puntos_txt = FUENTE.render(f"Puntos: {puntuacion}", True, NEGRO)
+    VENTANA.blit(puntos_txt, (ANCHO//2 - puntos_txt.get_width()//2, int(ALTO*0.02)))
 
     pygame.display.update()
 
-# --- MODO DESAFÍO (10 palabras, 3 minutos total) ---
-def modo_desafio():
-    palabras_juego = random.sample(PALABRAS, min(10, len(PALABRAS)))
+# --- MODO DESAFÍO (10 palabras) ---
+def modo_desafio(dificultad):
+    palabras_origen = DATA_PALABRAS[dificultad]
+    palabras_juego = random.sample(palabras_origen, min(10, len(palabras_origen)))
     letras_adivinadas_global = set()
-    tiempo_total = 300  # 🕐 5 minutos base
+    # tiempo base distinto por dificultad (ejemplo)
+    tiempo_total = 360 if dificultad == "facil" else 240
     inicio_tiempo_total = time.time()
     palabra_actual = 1
     total_palabras = len(palabras_juego)
 
     # ⚡ Sistema de rachas y puntuación
     racha_rapida = 0
-    tiempo_inicio_palabra = 0
     puntuacion = 0
 
     for palabra in palabras_juego:
@@ -262,7 +395,7 @@ def modo_desafio():
         for i in range(min(letras_extra, len(posibles_letras))):
             letras_adivinadas.add(posibles_letras[i])
 
-        # Además, mantener la letra encadenada de palabras anteriores
+        # mantener la letra encadenada de palabras anteriores
         if letras_adivinadas_global:
             comunes = [c for c in letras_adivinadas_global if c in palabra]
             if comunes:
@@ -299,7 +432,6 @@ def modo_desafio():
                         for boton in letras:
                             if boton[2] == letra and boton[3] == "activo":
                                 verificar_letra(letra, palabra, letras_adivinadas, letras_falladas, boton)
-                                # puntuación por letra
                                 if letra in palabra:
                                     puntuacion += 10
                                 else:
@@ -320,12 +452,7 @@ def modo_desafio():
 
             intentos = len(letras_falladas)
             dibujar(palabra, letras_adivinadas, letras, intentos, letras_falladas,
-                    tiempo_restante, palabra_actual, total_palabras)
-
-            # Mostrar puntuación en pantalla
-            puntos_txt = FUENTE.render(f"Puntos: {puntuacion}", True, NEGRO)
-            VENTANA.blit(puntos_txt, (ANCHO//2 - puntos_txt.get_width()//2, 20))
-            pygame.display.update()
+                    tiempo_restante, palabra_actual, total_palabras, puntuacion)
 
             # --- Comprobaciones ---
             if all(l in letras_adivinadas for l in palabra):
@@ -358,10 +485,8 @@ def modo_desafio():
     if tiempo_final > 0:
         puntuacion += int(tiempo_final)
 
-    mostrar_mensaje(f"🏆 ¡Completaste las 10 palabras!\nPuntuación final: {puntuacion}", VERDE)
+    mostrar_mensaje(f"🏆 ¡Completaste las {total_palabras} palabras!\nPuntuación final: {puntuacion}", VERDE)
     return
-
-
 
 # --- INICIO ---
 menu_principal()
