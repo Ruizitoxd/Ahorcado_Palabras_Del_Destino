@@ -1,3 +1,4 @@
+import unicodedata
 import pygame
 import random
 import json
@@ -129,12 +130,19 @@ def crear_botones_letras():
 
 # versión robusta de verificar_letra que acepta set o list
 def verificar_letra(letra, palabra, letras_adivinadas, letras_falladas, boton):
-    if letra in palabra:
-        if isinstance(letras_adivinadas, set):
-            letras_adivinadas.add(letra)
-        else:
-            if letra not in letras_adivinadas:
-                letras_adivinadas.append(letra)
+    # Comparar letras ignorando tildes y mayúsculas/minúsculas
+    letra_normalizada = quitar_tildes(letra.lower())
+    palabra_normalizada = quitar_tildes(palabra.lower())
+
+    if letra_normalizada in palabra_normalizada:
+        # Agregar todas las letras de la palabra original que coinciden con la letra (sin tildes)
+        for original in palabra:
+            if quitar_tildes(original.lower()) == letra_normalizada:
+                if isinstance(letras_adivinadas, set):
+                    letras_adivinadas.add(original)
+                else:
+                    if original not in letras_adivinadas:
+                        letras_adivinadas.append(original)
         boton[3] = "usada"
     else:
         if isinstance(letras_falladas, set):
@@ -157,6 +165,13 @@ def mostrar_mensaje(texto, color, delay_ms=1500):
         y_inicio += mensaje.get_height() + 10
     pygame.display.update()
     pygame.time.delay(delay_ms)
+
+def quitar_tildes(texto):
+    """Elimina tildes y signos diacríticos del texto."""
+    return ''.join(
+        c for c in unicodedata.normalize('NFD', texto)
+        if unicodedata.category(c) != 'Mn'
+    )
 
 # --- MENÚ PRINCIPAL ---
 def menu_principal():
