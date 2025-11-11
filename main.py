@@ -57,6 +57,31 @@ modo_pantalla_completa = False
 clock = pygame.time.Clock()
 FPS = 60
 
+# --- Clases ---
+class Nube:
+    def __init__(self, x, y, velocidad):
+        self.x = x
+        self.y = y
+        self.velocidad = velocidad
+        self.imagen = pygame.image.load("assets/nube.png")
+        self.imagen = pygame.transform.scale(self.imagen, (int(ANCHO*0.15), int(ALTO*0.15)))
+
+    def mover(self):
+        self.x += self.velocidad
+        if self.x > ANCHO:
+            self.x = -self.imagen.get_width()
+            self.y = random.randint(30, int(ALTO*0.3))
+
+    def dibujar(self, ventana):
+        ventana.blit(self.imagen, (self.x, self.y))
+
+# Creación de las nubes
+nubes = [
+    Nube(100, 100, 0.3),
+    Nube(400, 150, 0.2),
+    Nube(700, 80, 0.4)
+]
+
 # --- FUNCIONES AUXILIARES ---
 def escalar_imagen_desde_original(idx, escala):
     """Escala la imagen original en IMAGENES_ORIG[idx] con factor escala (float)."""
@@ -433,8 +458,15 @@ def seleccionar_dificultad():
         clock.tick(FPS)
 
 # --- DIBUJAR JUEGO (mejorado responsive) ---
-def dibujar(palabra, letras_adivinadas, letras, intentos, letras_falladas, tiempo_restante, palabra_actual, total_palabras, puntuacion):
-    VENTANA.fill(BLANCO)
+def dibujar(palabra, letras_adivinadas, letras, intentos, letras_falladas, tiempo_restante, palabra_actual, total_palabras, puntuacion, dificultad):
+    VENTANA.fill(BLANCO)  # fondo simple para difícil
+    if dificultad == "facil":
+        for nube in nubes:
+            nube.mover()
+            nube.dibujar(VENTANA)
+    else:
+        VENTANA.fill(ROJO)  # fondo simple para difícil
+    #VENTANA.fill(BLANCO)
 
     # escala y obtener imagen
     imagen = IMAGENES[intentos]
@@ -586,7 +618,7 @@ def modo_desafio(dificultad):
 
             intentos = len(letras_falladas)
             dibujar(palabra, letras_adivinadas, letras, intentos, letras_falladas,
-                    tiempo_restante, palabra_actual, total_palabras, puntuacion)
+                    tiempo_restante, palabra_actual, total_palabras, puntuacion, dificultad)
 
             # --- Comprobaciones ---
             if all(l in letras_adivinadas for l in palabra):
