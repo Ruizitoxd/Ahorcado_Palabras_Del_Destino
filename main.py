@@ -22,6 +22,9 @@ GRIS = (200, 200, 200)
 GRIS_OSCURO = (150, 150, 150)
 VERDE = (0, 200, 0)
 
+# Paleta para botones translúcidos (texto blanco)
+BTN_BG_ALPHA = 160
+
 # --- FUENTES ---
 def fuente_responsive(tamaño):
     # Tamaño base escalado por ANCHO respecto a ANCHO_BASE, con mínimo 14
@@ -73,25 +76,50 @@ def actualizar_imagenes_por_tamano():
 # inicializar IMAGENES escaladas
 actualizar_imagenes_por_tamano()
 
-def dibujar_boton(texto, x, y, ancho, alto, color, color_texto, hover_color=None):
+# ----- Botón translúcido y fiable -----
+def dibujar_boton(texto, x, y, ancho, alto, color_bg, color_texto, hover_color=None):
     """
-    Dibuja un botón en coordenadas absolutas (enteros) y devuelve True si fue clickeado.
-    x,y,ancho,alto deben estar en pixeles. Para hacerlo responsive, calcula estos con proporciones fuera.
+    Dibuja un botón translúcido con texto centrado.
+    Devuelve True si fue clickeado (usa estado actual del mouse).
     """
     mouse = pygame.mouse.get_pos()
     click = pygame.mouse.get_pressed()
     dentro = x < mouse[0] < x + ancho and y < mouse[1] < y + alto
 
-    if dentro:
-        pygame.draw.rect(VENTANA, hover_color or color, (x, y, ancho, alto), border_radius=8)
-        if click[0] == 1:
-            pygame.time.delay(120)
-            return True
-    else:
-        pygame.draw.rect(VENTANA, color, (x, y, ancho, alto), border_radius=8)
+    # Crear superficie translúcida
+    surf = pygame.Surface((ancho, alto), pygame.SRCALPHA)
+    # color_bg puede venir como tuple RGB o tuple RGBA
+    bg = color_bg if len(color_bg) == 4 else (*color_bg, BTN_BG_ALPHA)
+    hover_bg = hover_color if hover_color is not None else (bg[0], bg[1], bg[2])
+    hover_bg = hover_bg if (len(hover_bg) == 4) else (*hover_bg, BTN_BG_ALPHA+40)
 
+    if dentro:
+        surf.fill(hover_bg)
+    else:
+        surf.fill(bg)
+
+    # Borde suave
+    radius = 10
+    # Pegar surf en ventana con borde redondeado (pygame no trae fácil border_radius para surf con alpha)
+    # Dibujamos rect en la ventana directamente con alpha mediante surf.convert_alpha()
+    VENTANA.blit(surf, (x, y))
+
+    # Texto centrado
     texto_render = FUENTE.render(texto, True, color_texto)
     VENTANA.blit(texto_render, (x + ancho/2 - texto_render.get_width()/2, y + alto/2 - texto_render.get_height()/2))
+
+    # Detectar click (evitamos múltiples detecciones usando pequeño delay dentro del mismo frame)
+    if dentro and click[0] == 1:
+        # espera a release para evitar múltiples activaciones instantáneas
+        # bloqueamos aquí brevemente (no demasiado): esto simplifica la interacción
+        while pygame.mouse.get_pressed()[0]:
+            for e in pygame.event.get():
+                if e.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+            pygame.time.delay(10)
+        pygame.time.delay(80)
+        return True
     return False
 
 def redimensionar(nuevo_ancho, nuevo_alto, recrear_ventana=True):
@@ -173,33 +201,109 @@ def quitar_tildes(texto):
         if unicodedata.category(c) != 'Mn'
     )
 
-# --- MENÚ PRINCIPAL ---
+# --- FONDO ANIMADO (DESTELLOS) ---
+def crear_particulas_destellos(n):
+    particulas = []
+    for _ in range(n):
+        x = random.uniform(0, ANCHO)
+        y = random.uniform(0, ALTO)
+        vx = random.uniform(-0.15, 0.15)   # ligero movimiento horizontal
+        vy = random.uniform(-0.25, -0.6)   # suben lentamente
+        size = random.uniform(0.7, 3.2)
+        brillo = random.uniform(100, 255)
+        particulas.append([x, y, vx, vy, size, brillo])
+    return particulas
+
+def actualizar_y_dibujar_particulas(particulas):
+    for p in particulas:
+        p[0] += p[2]
+        p[1] += p[3]
+        p[5] += random.uniform(-1.0, 1.0)  # fluctuación brillo
+        p[5] = max(80, min(255, p[5]))
+        # reaparecer abajo si se van arriba
+        if p[1] < -10 or p[0] < -20 or p[0] > ANCHO + 20:
+            p[0] = random.uniform(0, ANCHO)
+            p[1] = ALTO + random.uniform(5, 60)
+            p[2] = random.uniform(-0.15, 0.15)
+            p[3] = random.uniform(-0.25, -0.6)
+            p[4] = random.uniform(0.7, 3.2)
+            p[5] = random.uniform(120, 255)
+        # dibujar círculo con alpha según brillo
+        alpha = int(p[5])
+        surf = pygame.Surface((int(p[4]*3)+2, int(p[4]*3)+2), pygame.SRCALPHA)
+        pygame.draw.circle(surf, (255, 255, 255, alpha), (surf.get_width()//2, surf.get_height()//2), max(1, int(p[4])))
+        VENTANA.blit(surf, (int(p[0]-surf.get_width()//2), int(p[1]-surf.get_height()//2)))
+
+# --- MENÚ PRINCIPAL (ESTILO HOLLOW) ---
 def menu_principal():
-    corriendo = True
-    while corriendo:
-        VENTANA.fill(BLANCO)
-        titulo_fuente = pygame.font.SysFont("comicsans", max(24, int(ANCHO * 0.06)))
-        titulo = titulo_fuente.render("JUEGO DEL AHORCADO", True, NEGRO)
-        VENTANA.blit(titulo, (ANCHO/2 - titulo.get_width()/2, ALTO*0.12))
+    # Fondo base
+    ruta_fondo = os.path.join(ruta_assets, "fondo_hollow.png")
+    fondo = None
+    if os.path.exists(ruta_fondo):
+        fondo = pygame.image.load(ruta_fondo).convert()
 
-        # calcular botones con proporciones
-        btn_w = int(ANCHO * 0.32)
-        btn_h = int(ALTO * 0.10)
-        x_center = ANCHO/2 - btn_w/2
-        y_jugar = int(ALTO * 0.42)
+    # Intento de fuente temática (si tienes assets/fonts/TrajanPro-Regular.ttf lo usará)
+    try:
+        fuente_titulo = pygame.font.Font(os.path.join(ruta_assets, "fonts", "TrajanPro-Regular.ttf"), int(ALTO * 0.12))
+    except:
+        fuente_titulo = pygame.font.SysFont("georgia", int(ALTO * 0.12))
 
-        if dibujar_boton("JUGAR", int(x_center), y_jugar, btn_w, btn_h, GRIS, NEGRO, (180,180,180)):
+    # partículas (destellos)
+    particulas = crear_particulas_destellos(48)
+
+    fade_alpha = 0
+    fade_in = True
+
+    while True:
+        # DIBUJO FONDO
+        if fondo:
+            fondo_escalado = pygame.transform.smoothscale(fondo, (ANCHO, ALTO))
+            VENTANA.blit(fondo_escalado, (0, 0))
+            # aplicar un leve oscurecimiento para que texto resalte
+            overlay = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
+            overlay.fill((10, 12, 20, 120))
+            VENTANA.blit(overlay, (0,0))
+        else:
+            VENTANA.fill((12, 14, 18))
+
+        # partículas destellos
+        actualizar_y_dibujar_particulas(particulas)
+
+        # TÍTULO grande
+        titulo = fuente_titulo.render("HOLLOW HANGMAN", True, (245, 245, 250))
+        # fade-in
+        if fade_in:
+            fade_alpha += 4
+            if fade_alpha >= 255:
+                fade_alpha = 255
+                fade_in = False
+        titulo.set_alpha(fade_alpha)
+        VENTANA.blit(titulo, (ANCHO/2 - titulo.get_width()/2, ALTO * 0.14))
+
+        # Botones centrados
+        btn_w = int(ANCHO * 0.33)
+        btn_h = int(ALTO * 0.085)
+        x_center = int(ANCHO/2 - btn_w/2)
+        y_start = int(ALTO * 0.45)
+        hover = (220, 220, 255)
+
+        # START -> abrir selector de dificultad
+        if dibujar_boton("START GAME", x_center, y_start, btn_w, btn_h, (30,30,40), (255,255,255), hover):
             dificultad = seleccionar_dificultad()
-            if dificultad is not None:
+            if dificultad:
                 modo_desafio(dificultad)
+            # al volver, continuar mostrando el menu
 
-        if dibujar_boton("CONFIGURACIÓN", int(x_center), y_jugar + btn_h + int(ALTO*0.03), btn_w, btn_h, GRIS, NEGRO, (180,180,180)):
+        # OPTIONS
+        if dibujar_boton("OPTIONS", x_center, y_start + btn_h + 18, btn_w, btn_h, (30,30,40), (255,255,255), hover):
             configuracion()
 
-        if dibujar_boton("SALIR", int(x_center), y_jugar + 2*(btn_h + int(ALTO*0.03)), btn_w, btn_h, GRIS, NEGRO, (180,180,180)):
+        # QUIT
+        if dibujar_boton("QUIT GAME", x_center, y_start + 2*(btn_h + 18), btn_w, btn_h, (30,30,40), (255,255,255), hover):
             pygame.quit()
             sys.exit()
 
+        # eventos
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -210,96 +314,114 @@ def menu_principal():
         pygame.display.update()
         clock.tick(FPS)
 
-# --- CONFIGURACIÓN ---
+# --- CONFIGURACIÓN (aplica mismo estilo) ---
 def configuracion():
-    """
-    Menú de configuración. Al cambiar el modo de pantalla se llama a set_mode() una vez
-    y luego a redimensionar(..., recrear_ventana=False) para recalcular fuentes e imágenes.
-    """
     global modo_pantalla_completa, VENTANA, ANCHO, ALTO
-    corriendo = True
-    while corriendo:
-        VENTANA.fill(BLANCO)
-        titulo_fuente = fuente_responsive(60)
-        titulo = titulo_fuente.render("CONFIGURACIÓN", True, NEGRO)
-        VENTANA.blit(titulo, (ANCHO/2 - titulo.get_width()/2, ALTO*0.12))
+    ruta_fondo = os.path.join(ruta_assets, "fondo_hollow.png")
+    fondo = None
+    if os.path.exists(ruta_fondo):
+        fondo = pygame.image.load(ruta_fondo).convert()
+
+    try:
+        fuente_titulo = pygame.font.Font(os.path.join(ruta_assets, "fonts", "TrajanPro-Regular.ttf"), int(ALTO * 0.09))
+    except:
+        fuente_titulo = pygame.font.SysFont("georgia", int(ALTO * 0.09))
+
+    particulas = crear_particulas_destellos(36)
+
+    while True:
+        if fondo:
+            VENTANA.blit(pygame.transform.smoothscale(fondo, (ANCHO, ALTO)), (0,0))
+            overlay = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
+            overlay.fill((6, 6, 8, 140))
+            VENTANA.blit(overlay, (0,0))
+        else:
+            VENTANA.fill((12, 14, 18))
+
+        actualizar_y_dibujar_particulas(particulas)
+
+        titulo = fuente_titulo.render("CONFIGURACIÓN", True, (245,245,250))
+        VENTANA.blit(titulo, (ANCHO/2 - titulo.get_width()/2, ALTO * 0.12))
 
         btn_w = int(ANCHO * 0.44)
         btn_h = int(ALTO * 0.10)
         x_center = ANCHO/2 - btn_w/2
         y = int(ALTO*0.4)
+        hover = (220,220,255)
 
-        if dibujar_boton("Pantalla completa" if not modo_pantalla_completa else "Modo ventana", int(x_center), y, btn_w, btn_h, GRIS, NEGRO, (180,180,180)):
-            # toggle del modo completo
+        if dibujar_boton("Pantalla completa" if not modo_pantalla_completa else "Modo ventana", int(x_center), y, btn_w, btn_h, (30,30,40), (255,255,255), hover):
             modo_pantalla_completa = not modo_pantalla_completa
             try:
                 if modo_pantalla_completa:
-                    # Activar fullscreen — llamar a set_mode UNA vez
                     VENTANA = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
                     ANCHO, ALTO = VENTANA.get_size()
-                    # No recreamos la ventana dentro de redimensionar, ya la cambiamos arriba
                     redimensionar(ANCHO, ALTO, recrear_ventana=False)
-                    print("[configuracion] ahora FULLSCREEN:", ANCHO, ALTO)
                 else:
-                    # Volver a ventana redimensionable con tamaño por defecto
                     VENTANA = pygame.display.set_mode((1024, 640), pygame.RESIZABLE)
                     ANCHO, ALTO = VENTANA.get_size()
                     redimensionar(ANCHO, ALTO, recrear_ventana=False)
-                    print("[configuracion] ahora VENTANA:", ANCHO, ALTO)
             except Exception as e:
                 print("[configuracion] error al cambiar modo:", e)
 
-        if dibujar_boton("← VOLVER",  int(ANCHO*0.03), ALTO - int(ALTO*0.12), int(ANCHO*0.18), int(ALTO*0.08), GRIS, NEGRO, (180,180,180)):
-            corriendo = False
+        if dibujar_boton("← VOLVER",  int(ANCHO*0.03), ALTO - int(ALTO*0.12), int(ANCHO*0.18), int(ALTO*0.08), (30,30,40), (255,255,255), hover):
+            return
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
             if event.type == pygame.VIDEORESIZE:
-                # Cuando el usuario redimensiona manualmente la ventana, redimensionar recrea la ventana.
                 redimensionar(event.w, event.h, recrear_ventana=True)
 
         pygame.display.update()
         clock.tick(FPS)
 
-# Seleccionar dificultad del juego (responsive)
+# Seleccionar dificultad (tema hollow)
 def seleccionar_dificultad():
-    corriendo = True
-    dificultad = None
-    while corriendo:
-        VENTANA.fill(BLANCO)
-        titulo_fuente = fuente_responsive(56)
-        titulo = titulo_fuente.render("Selecciona la Dificultad", True, NEGRO)
+    ruta_fondo = os.path.join(ruta_assets, "fondo_hollow.png")
+    fondo = None
+    if os.path.exists(ruta_fondo):
+        fondo = pygame.image.load(ruta_fondo).convert()
+
+    try:
+        fuente_titulo = pygame.font.Font(os.path.join(ruta_assets, "fonts", "TrajanPro-Regular.ttf"), int(ALTO * 0.085))
+    except:
+        fuente_titulo = pygame.font.SysFont("georgia", int(ALTO * 0.085))
+
+    particulas = crear_particulas_destellos(36)
+
+    while True:
+        if fondo:
+            VENTANA.blit(pygame.transform.smoothscale(fondo, (ANCHO, ALTO)), (0,0))
+            overlay = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
+            overlay.fill((8, 8, 12, 140))
+            VENTANA.blit(overlay, (0,0))
+        else:
+            VENTANA.fill((12, 14, 18))
+
+        actualizar_y_dibujar_particulas(particulas)
+
+        titulo = fuente_titulo.render("Selecciona la Dificultad", True, (245,245,250))
         VENTANA.blit(titulo, (ANCHO / 2 - titulo.get_width() / 2, ALTO * 0.12))
 
-        # --- Botones de dificultad centrados horizontal y verticalmente ---
+        # Botones centrados horizontalmente
         btn_w = int(ANCHO * 0.28)
         btn_h = int(ALTO * 0.11)
-        espacio = int(ANCHO * 0.05)  # separación horizontal entre botones
-
+        espacio = int(ANCHO * 0.05)
         total_ancho = btn_w * 2 + espacio
-        x_inicial = (ANCHO - total_ancho) // 2  # margen izquierdo del primer botón
-        y_centro = (ALTO - btn_h) // 2 + int(ALTO * 0.08)  # ligeramente más abajo del centro
+        x_inicial = (ANCHO - total_ancho) // 2
+        y_centro = (ALTO - btn_h) // 2 + int(ALTO * 0.08)
 
-        # Coordenadas de los botones
-        x_facil = x_inicial
-        x_dificil = x_inicial + btn_w + espacio
+        # FACIL y DIFICIL
+        if dibujar_boton("FÁCIL", x_inicial, y_centro, btn_w, btn_h, (40,60,40), (255,255,255), (0,150,0)):
+            return "facil"
+        if dibujar_boton("DIFÍCIL", x_inicial + btn_w + espacio, y_centro, btn_w, btn_h, (60,30,30), (255,255,255), (180,0,0)):
+            return "dificil"
 
-        # --- Dibujo de los botones ---
-        if dibujar_boton("FÁCIL", x_facil, y_centro, btn_w, btn_h, VERDE, BLANCO, (0, 150, 0)):
-            dificultad = "facil"
-            corriendo = False
+        # Volver
+        if dibujar_boton("← VOLVER", int(ANCHO * 0.03), ALTO - int(ALTO * 0.12), int(ANCHO * 0.18), int(ALTO * 0.08), (30,30,40), (255,255,255), (220,220,255)):
+            return None
 
-        if dibujar_boton("DIFÍCIL", x_dificil, y_centro, btn_w, btn_h, ROJO, BLANCO, (180, 0, 0)):
-            dificultad = "dificil"
-            corriendo = False
-
-        # --- Botón VOLVER (abajo a la izquierda) ---
-        if dibujar_boton("← VOLVER", int(ANCHO * 0.03), ALTO - int(ALTO * 0.12), int(ANCHO * 0.18), int(ALTO * 0.08), GRIS, NEGRO, (180, 180, 180)):
-            return None  # volver al menú principal
-
-        # --- Eventos ---
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -309,9 +431,6 @@ def seleccionar_dificultad():
 
         pygame.display.update()
         clock.tick(FPS)
-
-    return dificultad
-
 
 # --- DIBUJAR JUEGO (mejorado responsive) ---
 def dibujar(palabra, letras_adivinadas, letras, intentos, letras_falladas, tiempo_restante, palabra_actual, total_palabras, puntuacion):
@@ -504,5 +623,6 @@ def modo_desafio(dificultad):
     return
 
 # --- INICIO ---
-menu_principal()
-pygame.quit()
+if __name__ == "__main__":
+    menu_principal()
+    pygame.quit()
