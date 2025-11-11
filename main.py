@@ -457,70 +457,202 @@ def seleccionar_dificultad():
         pygame.display.update()
         clock.tick(FPS)
 
+# --- CARGAR FONDOS DE DIFICULTAD ---
+fondo_facil_path = os.path.join(ruta_assets, "fondo_facil.jpg")
+fondo_dificil_path = os.path.join(ruta_assets, "fondo_dificil.jpg")
+
+try:
+    fondo_facil = pygame.image.load(fondo_facil_path).convert()
+    print(f"[OK] Fondo fácil cargado desde {fondo_facil_path}")
+except Exception as e:
+    print(f"[ERROR] No se pudo cargar fondo_facil.png: {e}")
+    fondo_facil = pygame.Surface((ANCHO, ALTO))
+    fondo_facil.fill((120, 200, 255))  # color azul claro de respaldo
+    print("[INFO] Usando color de respaldo para fondo fácil.")
+
+try:
+    if fondo_dificil_path.lower().endswith(".avif"):
+        # pygame no soporta .avif, intentamos una versión .png alternativa
+        alt_path = fondo_dificil_path.replace(".avif", ".png")
+        if os.path.exists(alt_path):
+            fondo_dificil = pygame.image.load(alt_path).convert()
+            print(f"[OK] Fondo difícil cargado desde {alt_path}")
+        else:
+            raise Exception("Formato .avif no soportado, y no existe versión .png")
+    else:
+        fondo_dificil = pygame.image.load(fondo_dificil_path).convert()
+        print(f"[OK] Fondo difícil cargado desde {fondo_dificil_path}")
+except Exception as e:
+    print(f"[ADVERTENCIA] No se pudo cargar fondo_dificil: {e}")
+    fondo_dificil = pygame.Surface((ANCHO, ALTO))
+    fondo_dificil.fill((30, 30, 60))  # color oscuro de respaldo
+    print("[INFO] Usando color de respaldo para fondo difícil.")
+
+    # --- SISTEMA DE PARTÍCULAS (CENIZA) ---
+# --- SISTEMA DE PARTÍCULAS (CENIZA) ---
+import random
+
+class ParticulaCeniza:
+    def __init__(self):
+        self.x = random.randint(0, ANCHO)
+        self.y = random.randint(-ALTO, 0)
+        self.vel_y = random.uniform(0.3, 1.0)
+        self.tamano = random.randint(2, 4)
+        self.alpha = random.randint(100, 180)
+
+    def actualizar(self):
+        self.y += self.vel_y
+        if self.y > ALTO:
+            self.y = random.randint(-50, 0)
+            self.x = random.randint(0, ANCHO)
+        # movimiento sutil lateral
+        self.x += random.uniform(-0.3, 0.3)
+
+    def dibujar(self, pantalla):
+        color = (180, 180, 180, self.alpha)
+        superficie = pygame.Surface((self.tamano, self.tamano), pygame.SRCALPHA)
+        pygame.draw.circle(superficie, color, (self.tamano//2, self.tamano//2), self.tamano//2)
+        pantalla.blit(superficie, (self.x, self.y))
+
+# Crear partículas de ceniza (se usan solo en modo difícil)
+particulas_ceniza = [ParticulaCeniza() for _ in range(70)]
+
+# --- SISTEMA DE ERUPCIONES VOLCÁNICAS ---
+# --- SISTEMA DE ERUPCIONES VOLCÁNICAS (versión mejorada) ---
+class Erupcion:
+    def __init__(self):
+        self.reiniciar()
+
+    def reiniciar(self):
+        self.x = random.randint(0, ANCHO)
+        self.y = ALTO + random.randint(50, 200)   # Nacen más abajo del suelo
+        self.radio = random.randint(8, 14)        # Tamaño del fuego
+        self.vel_y = random.uniform(1.5, 2.5)     # Subida moderada
+        self.color = random.choice([
+            (255, 80, 0, 220),   # naranja fuerte
+            (255, 30, 0, 200),   # rojo intenso
+            (255, 180, 50, 200)  # amarillo-lava
+        ])
+        self.alpha = 255
+        self.tiempo_vida = random.randint(130, 200)
+
+    def actualizar(self):
+        self.y -= self.vel_y
+        self.vel_y *= 0.98  # desacelera suavemente
+        self.tiempo_vida -= 1
+
+        # 🔥 si llega a la mitad de la pantalla, reinicia
+        if self.y <= ALTO / 10:
+            self.reiniciar()
+
+        # o si se acaba su tiempo de vida
+        elif self.tiempo_vida <= 0:
+            self.reiniciar()
+
+        # desvanecimiento suave al final
+        if self.tiempo_vida < 50:
+            self.alpha = max(0, int(self.alpha * 0.9))
+
+    def dibujar(self, pantalla):
+        superficie = pygame.Surface((self.radio * 2, self.radio * 2), pygame.SRCALPHA)
+        color = (*self.color[:3], self.alpha)
+        pygame.draw.circle(superficie, color, (self.radio, self.radio), self.radio)
+        pantalla.blit(superficie, (self.x, self.y))
+
+# Crear lista de erupciones (más cantidad = más movimiento)
+erupciones = [Erupcion() for _ in range(25)]
+
 # --- DIBUJAR JUEGO (mejorado responsive) ---
 def dibujar(palabra, letras_adivinadas, letras, intentos, letras_falladas, tiempo_restante, palabra_actual, total_palabras, puntuacion, dificultad):
-    VENTANA.fill(BLANCO)  # fondo simple para difícil
+    # --- Fondo según dificultad ---
     if dificultad == "facil":
+        # Escalar fondo fácil a tamaño de ventana
+        fondo_escalado = pygame.transform.smoothscale(fondo_facil, (ANCHO, ALTO))
+        VENTANA.blit(fondo_escalado, (0, 0))
+        # Dibujar nubes animadas sobre el fondo
         for nube in nubes:
             nube.mover()
             nube.dibujar(VENTANA)
     else:
-        VENTANA.fill(ROJO)  # fondo simple para difícil
-    #VENTANA.fill(BLANCO)
+        fondo_escalado = pygame.transform.smoothscale(fondo_dificil, (ANCHO, ALTO))
+        VENTANA.blit(fondo_escalado, (0, 0))
+            # --- Erupciones de lava (solo modo difícil) ---
+        for e in erupciones:
+            e.actualizar()
+            e.dibujar(VENTANA)
 
-    # escala y obtener imagen
+        # --- Ceniza flotante encima ---
+        for p in particulas_ceniza:
+            p.actualizar()
+            p.dibujar(VENTANA)
+
+
+
+        
+
+    # --- Imagen del ahorcado ---
     imagen = IMAGENES[intentos]
-
-    # posición de la imagen: arriba-izquierda con margen proporcional
     margen_x = int(ANCHO * 0.06)
     margen_y = int(ALTO * 0.06)
     imagen_x = margen_x
     imagen_y = margen_y
     VENTANA.blit(imagen, (imagen_x, imagen_y))
 
-    # calcular donde colocar la palabra: debajo de la imagen
+    # --- Palabra ---
     imagen_bottom = imagen_y + imagen.get_height()
     palabra_y = imagen_bottom + int(ALTO * 0.03)
     mostrar_palabra = ""
     for letra in palabra:
         mostrar_palabra += letra + " " if letra in letras_adivinadas else "_ "
-    # si la palabra es muy larga, reducir la fuente temporalmente
-    texto_palabra = FUENTE_PALABRA.render(mostrar_palabra, True, NEGRO)
+    color_palabra = BLANCO if dificultad == "dificil" else NEGRO
+    texto_palabra = FUENTE_PALABRA.render(mostrar_palabra, True, color_palabra)
     if texto_palabra.get_width() > ANCHO * 0.9:
-        # escala de fuente manual: usar FUENTE más pequeña
         font_temp = pygame.font.SysFont("comicsans", max(12, int(FUENTE_PALABRA.get_height() * 0.7)))
         texto_palabra = font_temp.render(mostrar_palabra, True, NEGRO)
-
     min_palabra_y = imagen_y + imagen.get_height() + 10
     final_palabra_y = max(palabra_y, min_palabra_y)
     VENTANA.blit(texto_palabra, (ANCHO/2 - texto_palabra.get_width()/2, final_palabra_y))
 
-    # Dibujar letras (botones)
+    # --- Letras ---
     for btn in letras:
         x, y, letra, estado, radius = btn
-        if estado == "activo":
-            pygame.draw.circle(VENTANA, NEGRO, (x, y), radius, 3)
-            texto = FUENTE.render(letra, True, NEGRO)
-        elif estado == "usada":
-            pygame.draw.circle(VENTANA, GRIS_OSCURO, (x, y), radius)
-            texto = FUENTE.render(letra, True, BLANCO)
-        elif estado == "fallo":
-            pygame.draw.circle(VENTANA, ROJO, (x, y), radius)
-            texto = FUENTE.render(letra, True, BLANCO)
-        VENTANA.blit(texto, (x - texto.get_width()/2, y - texto.get_height()/2))
+        texto = FUENTE.render(letra, True, BLANCO)
 
-    # Contador de palabras y tiempo (arriba)
-    progreso = FUENTE.render(f"Palabra {palabra_actual}/{total_palabras}", True, NEGRO)
+        if dificultad == "facil":
+            # --- MODO FÁCIL: Botones suaves y redondos ---
+            if estado == "activo":
+                pygame.draw.circle(VENTANA, (150, 180, 255), (x, y), radius)
+                pygame.draw.circle(VENTANA, (80, 110, 255), (x, y), radius, 3)
+            elif estado == "usada":
+                pygame.draw.circle(VENTANA, (200, 200, 200), (x, y), radius)
+            elif estado == "fallo":
+                pygame.draw.circle(VENTANA, (255, 150, 150), (x, y), radius)
+            VENTANA.blit(texto, (x - texto.get_width()/2, y - texto.get_height()/2))
+
+        else:
+            # --- MODO DIFÍCIL: Botones agresivos, rectos ---
+            rect = pygame.Rect(x - radius, y - radius, radius * 2, radius * 2)
+            if estado == "activo":
+                pygame.draw.rect(VENTANA, (80, 80, 80), rect, border_radius=2)
+                pygame.draw.rect(VENTANA, (255, 60, 60), rect, 2, border_radius=2)
+            elif estado == "usada":
+                pygame.draw.rect(VENTANA, (60, 60, 60), rect, border_radius=2)
+            elif estado == "fallo":
+                pygame.draw.rect(VENTANA, (120, 20, 20), rect, border_radius=2)
+            VENTANA.blit(texto, (x - texto.get_width()/2, y - texto.get_height()/2))
+
+
+    # --- HUD (progreso, tiempo, puntuación) ---
+    progreso = FUENTE.render(f"Palabra {palabra_actual}/{total_palabras}", True, BLANCO)
     VENTANA.blit(progreso, (int(ANCHO*0.02), int(ALTO*0.02)))
 
     minutos = int(tiempo_restante // 60)
     segundos = int(tiempo_restante % 60)
-    color_tiempo = ROJO if tiempo_restante < 30 else NEGRO
+    color_tiempo = ROJO if tiempo_restante < 30 else BLANCO
     cronometro = FUENTE.render(f"Tiempo: {minutos:02}:{segundos:02}", True, color_tiempo)
     VENTANA.blit(cronometro, (ANCHO - cronometro.get_width() - int(ANCHO*0.02), int(ALTO*0.02)))
 
-    # Mostrar puntuación en pantalla
-    puntos_txt = FUENTE.render(f"Puntos: {puntuacion}", True, NEGRO)
+    puntos_txt = FUENTE.render(f"Puntos: {puntuacion}", True, BLANCO)
     VENTANA.blit(puntos_txt, (ANCHO//2 - puntos_txt.get_width()//2, int(ALTO*0.02)))
 
     pygame.display.update()
