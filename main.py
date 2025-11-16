@@ -518,14 +518,13 @@ class ParticulaCeniza:
 particulas_ceniza = [ParticulaCeniza() for _ in range(70)]
 
 # --- SISTEMA DE ERUPCIONES VOLCÁNICAS ---
-# --- SISTEMA DE ERUPCIONES VOLCÁNICAS (versión mejorada) ---
 class Erupcion:
     def __init__(self):
         self.reiniciar()
 
     def reiniciar(self):
         self.x = random.randint(0, ANCHO)
-        self.y = ALTO + random.randint(50, 200)   # Nacen más abajo del suelo
+        self.y = ALTO/2 + random.randint(100, 300)   # Nacen más abajo del suelo
         self.radio = random.randint(8, 14)        # Tamaño del fuego
         self.vel_y = random.uniform(1.5, 2.5)     # Subida moderada
         self.color = random.choice([
@@ -585,10 +584,6 @@ def dibujar(palabra, letras_adivinadas, letras, intentos, letras_falladas, tiemp
         for p in particulas_ceniza:
             p.actualizar()
             p.dibujar(VENTANA)
-
-
-
-        
 
     # --- Imagen del ahorcado ---
     imagen = IMAGENES[intentos]
