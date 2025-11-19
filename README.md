@@ -1,124 +1,134 @@
-🎮 Ahorcado — Videojuego en Python (Pygame)
+# 🎮 Ahorcado — Videojuego en Python (Pygame)
 
-Este es un juego del Ahorcado desarrollado en Python + Pygame.
-Incluye imágenes, sonidos (si aplica), y archivos JSON para manejar palabras y puntuaciones.
+Este es un juego del **Ahorcado** desarrollado en **Python + Pygame**.  
+Incluye imágenes y archivos JSON para manejar palabras y puntuaciones.
 
-Este documento explica paso a paso cómo instalar y ejecutar el juego en cualquier computador, incluso si el usuario no tiene Python instalado.
+Este documento explica paso a paso **cómo instalar y ejecutar el juego**, tanto en versión compilada como desde el código fuente.
 
-🚀 Instalación
-✔ Opción 1 — Ejecutar la versión ya compilada (recomendada)
+---
 
-Esta es la forma más sencilla para el usuario final.
+# 🚀 Instalación
 
-Descarga la carpeta completa del juego desde la sección de releases (o donde la compartas).
+## ✔ Opción 1 — Ejecutar la versión ya compilada (recomendada)
 
-Extrae el archivo .zip (clic derecho → Extraer aquí).
+Esta es la forma más sencilla para el usuario final:
 
-Abre la carpeta extraída. Dentro encontrarás algo como:
+1. Descarga la carpeta completa del juego desde la sección de **Releases**
+2. Extrae el archivo `.zip`.
+3. Abre la carpeta extraída. Deberías ver algo como:
 
+```bash
 Ahorcado/
 │
 ├── main.exe
-├── puntuacion.json
-├── palabras.json
-├── icono.ico
-│
-└── assets/
-├── fondo_facil.jpg
-├── fondo_dificil.jpg
-├── hangman0.png
-├── hangman1.png
-├── ...
+└── _internal/
+```
 
-Haz doble clic en main.exe
+4. **Haz doble clic en `main.exe`.**
+5. ¡El juego iniciará automáticamente! 🎉
 
-¡El juego se abrirá inmediatamente! 🎉
+> **Nota:** No elimines ni muevas la carpeta `internal/`; son necesarios para el funcionamiento del juego.
 
-Nota: No elimines ni muevas la carpeta assets/ o los archivos .json, porque el juego los necesita para funcionar.
+---
 
-✔ Opción 2 — Ejecutar el código fuente (para desarrolladores)
+## ✔ Opción 2 — Ejecutar el código fuente (para desarrolladores)
 
-Si quieres ejecutar o modificar el código Python original:
+Si deseas modificar el juego o ejecutarlo directamente en Python:
 
-1️⃣ Instala Python 3.10 o superior
+### 1️⃣ Instala Python 3.10 o superior
 
-Descargar desde:
+Descarga desde:  
 https://www.python.org/downloads/
 
-Asegúrate de marcar:
-✔ Add Python to PATH
+Asegúrate de marcar:  
+✔ **Add Python to PATH**
 
-2️⃣ Instala dependencias
+---
 
-Abre una terminal dentro del proyecto y ejecuta:
+### 2️⃣ Instala dependencias
 
+En una terminal ubicada dentro del proyecto ejecuta:
+
+```bash
 pip install pygame
+```
 
-3️⃣ Ejecuta el juego
+### 3️⃣ Ejecuta el juego
 
-En la misma terminal:
+En una terminal ubicada dentro del proyecto ejecuta:
 
+```bash
 python main.py
+```
 
-🛠 Cómo fue generado el .EXE (información técnica)
+## 🛠 Cómo fue generado el ejecutable (.EXE)
 
-El ejecutable fue creado usando auto-py-to-exe (que internamente usa PyInstaller).
+El ejecutable se creó usando auto-py-to-exe (que utiliza PyInstaller internamente).
 
-Para reproducir la compilación:
+Para generar el ejecutable nuevamente:
 
-pip install auto-py-to-exe
-auto-py-to-exe
+```bash
+pip install pygame
+```
 
-Configuración usada:
+Configuración utilizada:
 
-Script: main.py
+-   Script: main.py
 
-One Directory (carpeta con el exe dentro)
+-   One Directory (carpeta que contiene el exe y los recursos)
 
-Additional Files:
+-   Additional Files incluidos:
 
-assets/
+    -   Carpeta assets/
 
-palabras.json
+    -   palabras.json
 
-puntuacion.json
+    -   puntuacion.json
 
-icono.ico
+    -   icono.ico
 
-Icono: icono.ico
+-   Icon: icono.ico
 
-Esto genera una carpeta en:
+El resultado se ubica en:
 
+```bash
 /dist/main/
+```
 
-Para distribución se comparte esa carpeta completa.
+## 📁 Estructura del proyecto
 
-📁 Estructura del proyecto
+```bash
 Ahorcado/
 │
 ├── main.py
 ├── palabras.json
 ├── puntuacion.json
 ├── README.md
-│
 ├── assets/
-│ ├── hangman0.png
-│ ├── hangman1.png
-│ ├── hangman2.png
-│ ├── fondo_facil.jpg
-│ ├── fondo_dificil.jpg
-│ ├── ...
-│
+│   ├── hangman0.png
+│   ├── hangman1.png
+│   ├── hangman2.png
+│   ├── hangman3.png
+│   ├── hangman4.png
+│   ├── hangman5.png
+│   ├── hangman6.png
+│   ├── fondo_facil.jpg
+│   ├── fondo_dificil.jpg
+│   ├── fondo_hollow.png
+│   └── nube.png
 └── icono.ico
+```
 
-🧩 Créditos
+## 🧩 Créditos
 
-Desarrollado por: [Tu nombre]
+-   Desarrollado por: Oscar David Macias Palomino y Juan Camilo Ruiz Osorio
+-   Lenguaje: Python
+-   Librería principal: Pygame
 
-Lenguaje: Python
+## ❓ Problemas o soporte
 
-Librería principal: Pygame
+Si tienes dudas o encuentras errores, abre un issue o contáctame.
 
-❓ Preguntas o problemas
+-   jruiz32@udi.edu.co
 
-Si tienes alguna duda o encuentras un error, puedes contactarme o abrir un issue en el repositorio.
+*   omacias1@udi.edu.co
