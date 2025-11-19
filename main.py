@@ -41,6 +41,171 @@ with open("palabras.json", "r", encoding="utf-8") as archivo:
 for k in list(DATA_PALABRAS.keys()):
     DATA_PALABRAS[k] = [p.upper() for p in DATA_PALABRAS[k]]
 
+# --- SISTEMA DE PUNTUACIÓN DEL JUEGO ---
+# --- CARGAR PUNTAJES DESDE JSON ---
+def pedir_nombre():
+    ruta_fondo = os.path.join(ruta_assets, "fondo_hollow.png")
+    fondo = None
+    if os.path.exists(ruta_fondo):
+        fondo = pygame.image.load(ruta_fondo).convert()
+
+    tam_fuente = max(24, int(ALTO * 0.05))
+    fuente = pygame.font.SysFont("Cambria", tam_fuente)
+
+    # Caja de texto proporcional
+    input_width = int(ANCHO * 0.30)
+    input_height = int(ALTO * 0.08)
+    input_x = ANCHO // 2 - input_width // 2
+    input_y = int(ALTO * 0.55)
+    input_box = pygame.Rect(input_x, input_y, input_width, input_height)
+
+    color_inactivo = (180, 180, 180)
+    color_activo = (255, 255, 255)
+    color = color_inactivo
+
+    nombre = ""
+    activo = False
+
+    while True:
+        if fondo:
+            VENTANA.blit(pygame.transform.smoothscale(fondo, (ANCHO, ALTO)), (0,0))
+            overlay = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
+            overlay.fill((6, 6, 8, 140))
+            VENTANA.blit(overlay, (0,0))
+        else:
+            VENTANA.fill((20, 20, 50))
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+            if event.type == pygame.VIDEORESIZE:
+                redimensionar(event.w, event.h, recrear_ventana=True)
+
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                # activar si hace clic en la caja
+                if input_box.collidepoint(event.pos):
+                    activo = True
+                else:
+                    activo = False
+
+            if event.type == pygame.KEYDOWN and activo:
+                if event.key == pygame.K_RETURN and len(nombre) > 0:
+                    return nombre
+                elif event.key == pygame.K_BACKSPACE:
+                    nombre = nombre[:-1]
+                elif event.unicode.isalpha():
+                    nombre += event.unicode.upper()
+
+        color = color_activo if activo else color_inactivo
+
+        # Título
+        titulo = fuente.render("Escribe tu nombre:", True, (255, 215, 0))
+        VENTANA.blit(titulo, (ANCHO/2 - titulo.get_width()/2, int(ALTO * 0.35)))
+
+        # CAJA DE TEXTO
+        pygame.draw.rect(VENTANA, color, input_box, max(2, int(ALTO * 0.003)))
+
+        # TEXTO QUE ESCRIBE EL JUGADOR
+        texto_superficie = fuente.render(nombre, True, (255, 255, 255))
+        VENTANA.blit(texto_superficie, (input_box.x + 10, input_box.y + input_height // 6))
+
+        pygame.display.flip()
+        clock.tick(30)
+
+def cargar_puntajes_json(ruta="puntuacion.json"):
+    try:
+        with open(ruta, "r") as file:
+            data = json.load(file)
+            return data.get("scores", [])
+    except FileNotFoundError:
+        return []
+
+# --- GUARDAR PUNTAJE ---
+def guardar_puntaje(nombre, puntos, ruta="puntuacion.json"):
+    try:
+        with open(ruta, "r") as file:
+            data = json.load(file)
+    except FileNotFoundError:
+        data = {"scores": []}
+
+    data["scores"].append({
+        "nombre": nombre,
+        "puntos": puntos
+    })
+
+    # Guardar todo ordenado por puntos
+    data["scores"] = sorted(data["scores"], key=lambda x: x["puntos"], reverse=True)
+
+    with open(ruta, "w") as file:
+        json.dump(data, file, indent=4)#
+
+# --- OBTENER TOP 10 ---
+def obtener_top10():
+    scores = cargar_puntajes_json()
+    return scores[:10]
+
+def dibujar_top10(top10):
+    ruta_fondo = os.path.join(ruta_assets, "fondo_hollow.png")
+    fondo = None
+    if os.path.exists(ruta_fondo):
+        fondo = pygame.image.load(ruta_fondo).convert()
+
+    # Título
+    try:
+        fuente_titulo = pygame.font.Font(os.path.join(ruta_assets, "fonts", 
+        "TrajanPro-Regular.ttf"), int(ALTO * 0.08))
+        font_score = pygame.font.Font(os.path.join(ruta_assets, "fonts", 
+        "TrajanPro-Regular.ttf"), int(ALTO * 0.06))
+    except:
+        fuente_titulo = pygame.font.SysFont("Cambria", int(ALTO * 0.08))
+        font_score = pygame.font.SysFont("Cambria", int(ALTO * 0.06))
+
+    particulas = crear_particulas_destellos(36)
+
+    while True:
+        if fondo:
+            VENTANA.blit(pygame.transform.smoothscale(fondo, (ANCHO, ALTO)), (0,0))
+            overlay = pygame.Surface((ANCHO, ALTO), pygame.SRCALPHA)
+            overlay.fill((6, 6, 8, 140))
+            VENTANA.blit(overlay, (0,0))
+        else:
+            VENTANA.fill((12, 14, 18))
+
+        actualizar_y_dibujar_particulas(particulas)
+
+        titulo = fuente_titulo.render("TOP 10 PUNTAJES", True, (245,245,250))
+        VENTANA.blit(titulo, (ANCHO / 2 - titulo.get_width() / 2, ALTO * 0.05))
+
+        btn_w = int(ANCHO*0.06)
+        btn_h = ALTO - int(ALTO * 0.12)
+        hover = (220,220,255)
+
+        # Lista
+        y = int(ALTO*0.2)
+        for idx, entry in enumerate(top10, start=1):
+            texto = font_score.render(
+                f"{idx}. {entry['nombre']} - {entry['puntos']} pts",
+                True,
+                (255, 255, 255)
+            )
+            VENTANA.blit(texto, (ANCHO / 2 - texto.get_width() / 2, y))
+            y += int(ALTO*0.06)
+        
+        if dibujar_boton("← VOLVER",  btn_w, btn_h, int(ANCHO*0.18), int(ALTO*0.08), (30,30,40), (255,255,255), hover):
+            return
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.VIDEORESIZE:
+                redimensionar(event.w, event.h, recrear_ventana=True)
+        
+        pygame.display.update()
+        clock.tick(FPS)
+
 # --- CARGAR IMÁGENES (originales) ---
 IMAGENES_ORIG = []
 ruta_assets = os.path.join(os.path.dirname(__file__), "assets")
@@ -312,19 +477,23 @@ def menu_principal():
         y_start = int(ALTO * 0.45)
         hover = (220, 220, 255)
 
-        # START -> abrir selector de dificultad
-        if dibujar_boton("START GAME", x_center, y_start, btn_w, btn_h, (30,30,40), (255,255,255), hover):
+        # JUGAR -> abrir selector de dificultad
+        if dibujar_boton("JUGAR", x_center, y_start, btn_w, btn_h, (30,30,40), (255,255,255), hover):
             dificultad = seleccionar_dificultad()
             if dificultad:
                 modo_desafio(dificultad)
             # al volver, continuar mostrando el menu
 
-        # OPTIONS
-        if dibujar_boton("OPTIONS", x_center, y_start + btn_h + 18, btn_w, btn_h, (30,30,40), (255,255,255), hover):
+        # OPCIONES
+        if dibujar_boton("OPCIONES", x_center, y_start + btn_h + 18, btn_w, btn_h, (30,30,40), (255,255,255), hover):
             configuracion()
 
+        # PUNTUACION
+        if dibujar_boton("PUNTUACIÓN", x_center, y_start + 2*(btn_h + 18), btn_w, btn_h, (30,30,40), (255,255,255), hover):
+            dibujar_top10(obtener_top10())
+
         # QUIT
-        if dibujar_boton("QUIT GAME", x_center, y_start + 2*(btn_h + 18), btn_w, btn_h, (30,30,40), (255,255,255), hover):
+        if dibujar_boton("QUIT GAME", x_center, y_start + 3*(btn_h + 18), btn_w, btn_h, (30,30,40), (255,255,255), hover):
             pygame.quit()
             sys.exit()
 
@@ -490,8 +659,6 @@ except Exception as e:
 
     # --- SISTEMA DE PARTÍCULAS (CENIZA) ---
 # --- SISTEMA DE PARTÍCULAS (CENIZA) ---
-import random
-
 class ParticulaCeniza:
     def __init__(self):
         self.x = random.randint(0, ANCHO)
@@ -778,8 +945,21 @@ def modo_desafio(dificultad):
     if tiempo_final > 0:
         puntuacion += int(tiempo_final)
 
-    mostrar_mensaje(f"🏆 ¡Completaste las {total_palabras} palabras!\nPuntuación final: {puntuacion}", VERDE)
+    # Mensaje final
+    mostrar_mensaje(f"🏆 ¡Completaste las {total_palabras} palabras!\n"
+                    f"Puntuación final: {puntuacion}", VERDE, delay_ms=1500)
+
+    # PEDIR NOMBRE
+    nombre_jugador = pedir_nombre()
+
+    # GUARDAR PUNTAJE
+    guardar_puntaje(nombre_jugador, puntuacion)
+
+    # Confirmación
+    mostrar_mensaje(f"💾 Puntaje guardado.\nGracias por jugar {nombre_jugador}!", VERDE, delay_ms=1500)
+
     return
+
 
 # --- INICIO ---
 if __name__ == "__main__":
