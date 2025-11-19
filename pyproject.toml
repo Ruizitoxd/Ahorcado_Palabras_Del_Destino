@@ -1,5 +1,0 @@
-[tool.pygbag]
-assets = [
-    "assets",
-    "palabras.json"
-]

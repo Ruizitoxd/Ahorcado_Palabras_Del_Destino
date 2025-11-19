@@ -8,6 +8,16 @@ import os
 
 pygame.init()
 
+# -- FUNCIÓN PARA LA EXPORTACIÓN DEL JUEGO EMPAQUETADA
+def resource_path(relative_path):
+    """ Obtiene la ruta correcta cuando el juego está empaquetado con PyInstaller """
+    try:
+        base_path = sys._MEIPASS  # Carpeta temporal del EXE
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
 # --- CONFIGURACIÓN BASE ---
 ANCHO_BASE, ALTO_BASE = 1920, 1080
 ANCHO, ALTO = 1280, 720
@@ -35,7 +45,7 @@ FUENTE = fuente_responsive(40)
 FUENTE_PALABRA = fuente_responsive(70)
 
 # --- CARGAR PALABRAS DESDE JSON ---
-with open("palabras.json", "r", encoding="utf-8") as archivo:
+with open(resource_path("palabras.json"), "r", encoding="utf-8") as archivo:
     DATA_PALABRAS = json.load(archivo)
 # Normalizar a mayúsculas para evitar discrepancias
 for k in list(DATA_PALABRAS.keys()):
@@ -47,7 +57,7 @@ def pedir_nombre():
     ruta_fondo = os.path.join(ruta_assets, "fondo_hollow.png")
     fondo = None
     if os.path.exists(ruta_fondo):
-        fondo = pygame.image.load(ruta_fondo).convert()
+        fondo = pygame.image.load(resource_path(ruta_fondo)).convert()
 
     tam_fuente = max(24, int(ALTO * 0.05))
     fuente = pygame.font.SysFont("Cambria", tam_fuente)
@@ -116,7 +126,7 @@ def pedir_nombre():
 
 def cargar_puntajes_json(ruta="puntuacion.json"):
     try:
-        with open(ruta, "r") as file:
+        with open(resource_path(ruta), "r") as file:
             data = json.load(file)
             return data.get("scores", [])
     except FileNotFoundError:
@@ -125,7 +135,7 @@ def cargar_puntajes_json(ruta="puntuacion.json"):
 # --- GUARDAR PUNTAJE ---
 def guardar_puntaje(nombre, puntos, ruta="puntuacion.json"):
     try:
-        with open(ruta, "r") as file:
+        with open(resource_path(ruta), "r") as file:
             data = json.load(file)
     except FileNotFoundError:
         data = {"scores": []}
@@ -138,7 +148,7 @@ def guardar_puntaje(nombre, puntos, ruta="puntuacion.json"):
     # Guardar todo ordenado por puntos
     data["scores"] = sorted(data["scores"], key=lambda x: x["puntos"], reverse=True)
 
-    with open(ruta, "w") as file:
+    with open(resource_path(ruta), "w") as file:
         json.dump(data, file, indent=4)#
 
 # --- OBTENER TOP 10 ---
@@ -150,7 +160,7 @@ def dibujar_top10(top10):
     ruta_fondo = os.path.join(ruta_assets, "fondo_hollow.png")
     fondo = None
     if os.path.exists(ruta_fondo):
-        fondo = pygame.image.load(ruta_fondo).convert()
+        fondo = pygame.image.load(resource_path(ruta_fondo)).convert()
 
     # Título
     try:
@@ -211,7 +221,7 @@ IMAGENES_ORIG = []
 ruta_assets = os.path.join(os.path.dirname(__file__), "assets")
 for i in range(7):
     path_img = os.path.join(ruta_assets, f"hangman{i}.png")
-    imagen = pygame.image.load(path_img).convert_alpha()
+    imagen = pygame.image.load(resource_path(path_img)).convert_alpha()
     IMAGENES_ORIG.append(imagen)
 
 # IMAGENES que se usan en cada frame (escaladas)
@@ -228,7 +238,7 @@ class Nube:
         self.x = x
         self.y = y
         self.velocidad = velocidad
-        self.imagen = pygame.image.load("assets/nube.png")
+        self.imagen = pygame.image.load(resource_path("assets/nube.png"))
         self.imagen = pygame.transform.scale(self.imagen, (int(ANCHO*0.15), int(ALTO*0.15)))
 
     def mover(self):
@@ -429,8 +439,8 @@ def menu_principal():
     # Fondo base
     ruta_fondo = os.path.join(ruta_assets, "fondo_hollow.png")
     fondo = None
-    if os.path.exists(ruta_fondo):
-        fondo = pygame.image.load(ruta_fondo).convert()
+    if os.path.exists(resource_path(ruta_fondo)):
+        fondo = pygame.image.load(resource_path(ruta_fondo)).convert()
 
     # Intento de fuente temática (si tienes assets/fonts/TrajanPro-Regular.ttf lo usará)
     try:
@@ -514,7 +524,7 @@ def configuracion():
     ruta_fondo = os.path.join(ruta_assets, "fondo_hollow.png")
     fondo = None
     if os.path.exists(ruta_fondo):
-        fondo = pygame.image.load(ruta_fondo).convert()
+        fondo = pygame.image.load(resource_path(ruta_fondo)).convert()
 
     try:
         fuente_titulo = pygame.font.Font(os.path.join(ruta_assets, "fonts", "TrajanPro-Regular.ttf"), int(ALTO * 0.09))
@@ -575,7 +585,7 @@ def seleccionar_dificultad():
     ruta_fondo = os.path.join(ruta_assets, "fondo_hollow.png")
     fondo = None
     if os.path.exists(ruta_fondo):
-        fondo = pygame.image.load(ruta_fondo).convert()
+        fondo = pygame.image.load(resource_path(ruta_fondo)).convert()
 
     try:
         fuente_titulo = pygame.font.Font(os.path.join(ruta_assets, "fonts", "TrajanPro-Regular.ttf"), int(ALTO * 0.085))
@@ -631,7 +641,7 @@ fondo_facil_path = os.path.join(ruta_assets, "fondo_facil.jpg")
 fondo_dificil_path = os.path.join(ruta_assets, "fondo_dificil.jpg")
 
 try:
-    fondo_facil = pygame.image.load(fondo_facil_path).convert()
+    fondo_facil = pygame.image.load(resource_path(fondo_facil_path)).convert()
     print(f"[OK] Fondo fácil cargado desde {fondo_facil_path}")
 except Exception as e:
     print(f"[ERROR] No se pudo cargar fondo_facil.png: {e}")
@@ -643,13 +653,13 @@ try:
     if fondo_dificil_path.lower().endswith(".avif"):
         # pygame no soporta .avif, intentamos una versión .png alternativa
         alt_path = fondo_dificil_path.replace(".avif", ".png")
-        if os.path.exists(alt_path):
-            fondo_dificil = pygame.image.load(alt_path).convert()
+        if os.path.exists(resource_path(alt_path)):
+            fondo_dificil = pygame.image.load(resource_path(alt_path)).convert()
             print(f"[OK] Fondo difícil cargado desde {alt_path}")
         else:
             raise Exception("Formato .avif no soportado, y no existe versión .png")
     else:
-        fondo_dificil = pygame.image.load(fondo_dificil_path).convert()
+        fondo_dificil = pygame.image.load(resource_path(fondo_dificil_path)).convert()
         print(f"[OK] Fondo difícil cargado desde {fondo_dificil_path}")
 except Exception as e:
     print(f"[ADVERTENCIA] No se pudo cargar fondo_dificil: {e}")
